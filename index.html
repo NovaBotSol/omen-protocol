@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        /* Previous styles remain the same */
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: #000;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .input-container {
+            position: relative;
+            z-index: 2;
+            margin-top: 50px;
+            display: flex;
+            gap: 10px;
+        }
+
+        input {
+            width: 500px;
+            padding: 12px;
+            border: 2px solid #4a90e2;
+            background: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #66b0ff;
+            box-shadow: 0 0 15px rgba(74, 144, 226, 0.5);
+        }
+
+        button {
+            padding: 12px 24px;
+            background: linear-gradient(45deg, #4a90e2, #66b0ff);
+            border: none;
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 15px rgba(74, 144, 226, 0.5);
+        }
+
+        .network-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .energy-ball {
+            position: fixed;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 3;
+            background: radial-gradient(circle at 30% 30%,
+                rgba(255, 255, 255, 0.9) 0%,
+                rgba(74, 144, 226, 0.8) 30%,
+                rgba(74, 144, 226, 0.4) 60%,
+                rgba(74, 144, 226, 0) 100%
+            );
+            box-shadow: 
+                0 0 20px rgba(74, 144, 226, 0.8),
+                0 0 40px rgba(74, 144, 226, 0.4),
+                0 0 60px rgba(74, 144, 226, 0.2);
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+
+        @keyframes energyAbsorption {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.5); opacity: 0.8; }
+            100% { transform: scale(0); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="input-container">
+            <input type="text" placeholder="Enter Solana wallet address" />
+            <button>Submit</button>
+        </div>
+        <div class="network-container">
+            <canvas></canvas>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.querySelector('canvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        let nodes = [];
+        let connections = [];
+        let animationIntensity = 1;
+        let lastTime = 0;
+        let usedAddresses = new Set();
+        let audioContext;
+        let animationFrameId = null;
+        let isPageVisible = true;
+
+        class Node {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.baseX = x;
+                this.baseY = y;
+                this.vx = 0;
+                this.vy = 0;
+                this.radius = Math.random() * 1.5 + 0.5;
+                this.phase = Math.random() * Math.PI * 2;
+                this.connections = [];
+            }
+
+            update(deltaTime) {
+                if (!deltaTime) return; // Prevent NaN values
+                
+                const dt = Math.min(deltaTime, 32); // Cap delta time
+                this.phase += dt * 0.001;
+                
+                const noise = (Math.sin(this.phase) + Math.cos(this.phase * 0.7)) * 0.5;
+                const targetX = this.baseX + noise * 20 * animationIntensity;
+                const targetY = this.baseY + noise * 20 * animationIntensity;
+                
+                this.vx += (targetX - this.x) * 0.05;
+                this.vy += (targetY - this.y) * 0.05;
+                
+                this.vx *= 0.95;
+                this.vy *= 0.95;
+                
+                this.x += this.vx * dt * 0.05;
+                this.y += this.vy * dt * 0.05;
+            }
+
+            draw() {
+                const glow = ctx.createRadialGradient(
+                    this.x, this.y, 0,
+                    this.x, this.y, this.radius * 4
+                );
+                glow.addColorStop(0, 'rgba(74, 144, 226, 0.3)');
+                glow.addColorStop(1, 'rgba(74, 144, 226, 0)');
+                
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius * 4, 0, Math.PI * 2);
+                ctx.fillStyle = glow;
+                ctx.fill();
+                
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = '#4a90e2';
+                ctx.fill();
+            }
+        }
+
+        // Previous Connection class remains the same
+        class Connection {
+            constructor(nodeA, nodeB) {
+                this.nodeA = nodeA;
+                this.nodeB = nodeB;
+                this.phase = Math.random() * Math.PI * 2;
+                this.opacity = Math.random() * 0.2 + 0.1;
+            }
+
+            update(deltaTime) {
+                if (!deltaTime) return;
+                const dt = Math.min(deltaTime, 32);
+                this.phase += dt * 0.001;
+                this.opacity = (Math.sin(this.phase) * 0.1 + 0.2) * animationIntensity;
+            }
+
+            draw() {
+                const dx = this.nodeB.x - this.nodeA.x;
+                const dy = this.nodeB.y - this.nodeA.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist < 150) {
+                    ctx.beginPath();
+                    ctx.moveTo(this.nodeA.x, this.nodeA.y);
+                    
+                    const midX = (this.nodeA.x + this.nodeB.x) * 0.5;
+                    const midY = (this.nodeA.y + this.nodeB.y) * 0.5;
+                    const offset = Math.sin(this.phase) * 20;
+                    const controlX = midX + Math.cos(this.phase) * offset;
+                    const controlY = midY + Math.sin(this.phase) * offset;
+                    
+                    ctx.quadraticCurveTo(controlX, controlY, this.nodeB.x, this.nodeB.y);
+                    ctx.strokeStyle = `rgba(74, 144, 226, ${this.opacity})`;
+                    ctx.lineWidth = 0.5;
+                    ctx.stroke();
+                }
+            }
+        }
+
+        function createNetwork() {
+            const centerX = width * 0.5;
+            const centerY = height * 0.5;
+            const radius = Math.min(width, height) * 0.3;
+            
+            nodes = [];
+            connections = [];
+            
+            for (let i = 0; i < 200; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = Math.pow(Math.random(), 0.5) * radius;
+                const x = centerX + Math.cos(angle) * distance;
+                const y = centerY + Math.sin(angle) * distance;
+                nodes.push(new Node(x, y));
+            }
+            
+            nodes.forEach(node => {
+                nodes.forEach(otherNode => {
+                    if (node !== otherNode) {
+                        const dx = node.x - otherNode.x;
+                        const dy = node.y - otherNode.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (dist < 150 && Math.random() < 0.3) {
+                            const connection = new Connection(node, otherNode);
+                            connections.push(connection);
+                            node.connections.push(connection);
+                            otherNode.connections.push(connection);
+                        }
+                    }
+                });
+            });
+        }
+
+        // Previous audio functions remain the same
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playFlyingSound() {
+            initAudioContext();
+            
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            const filter = audioContext.createBiquadFilter();
+            
+            oscillator.connect(filter);
+            filter.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            const now = audioContext.currentTime;
+            
+            oscillator.type = 'sawtooth';
+            oscillator.frequency.setValueAtTime(800, now);
+            oscillator.frequency.exponentialRampToValueAtTime(2000, now + 1);
+            
+            filter.type = 'bandpass';
+            filter.frequency.setValueAtTime(1000, now);
+            filter.frequency.exponentialRampToValueAtTime(3000, now + 1);
+            
+            gainNode.gain.setValueAtTime(0, now);
+            gainNode.gain.linearRampToValueAtTime(0.3, now + 0.1);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, now + 1);
+            
+            oscillator.start(now);
+            oscillator.stop(now + 1);
+        }
+
+        function playAbsorptionSound() {
+            initAudioContext();
+            
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            const now = audioContext.currentTime;
+            
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(2000, now);
+            oscillator.frequency.exponentialRampToValueAtTime(100, now + 0.5);
+            
+            gainNode.gain.setValueAtTime(0.4, now);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+            
+            oscillator.start(now);
+            oscillator.stop(now + 0.5);
+        }
+
+        function createEnergyBall(inputRect, networkRect) {
+            const ball = document.createElement('div');
+            ball.className = 'energy-ball';
+            document.body.appendChild(ball);
+
+            const startX = inputRect.left + inputRect.width / 2 - 10;
+            const startY = inputRect.top + inputRect.height / 2 - 10;
+            const endX = networkRect.left + networkRect.width / 2 - 10;
+            const endY = networkRect.top + networkRect.height / 2 - 10;
+
+            ball.style.left = startX + 'px';
+            ball.style.top = startY + 'px';
+            ball.style.opacity = '1';
+
+            setTimeout(() => {
+                ball.style.transition = 'all 1s cubic-bezier(0.4, 0, 0.2, 1)';
+                ball.style.left = endX + 'px';
+                ball.style.top = endY + 'px';
+
+                setTimeout(() => {
+                    playAbsorptionSound();
+                    ball.style.animation = 'energyAbsorption 0.5s ease-out forwards';
+                    animationIntensity = 2;
+                    setTimeout(() => {
+                        animationIntensity = 1;
+                        ball.remove();
+                    }, 500);
+                }, 1000);
+            }, 100);
+        }
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+            createNetwork();
+        }
+
+        function stopAnimation() {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+        }
+
+        function startAnimation() {
+            if (!animationFrameId) {
+                lastTime = performance.now();
+                animate(lastTime);
+            }
+        }
+
+        function animate(currentTime) {
+            if (!isPageVisible) return;
+
+            const deltaTime = currentTime - lastTime;
+            lastTime = currentTime;
+            
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, width, height);
+            
+            connections.forEach(connection => {
+                connection.update(deltaTime);
+                connection.draw();
+            });
+            
+            nodes.forEach(node => {
+                node.update(deltaTime);
+                node.draw();
+            });
+            
+            animationFrameId = requestAnimationFrame(animate);
+        }
+
+        function handleSubmit() {
+            const value = input.value.trim();
+            
+            if (!value) {
+                return;
+            }
+            
+            if (usedAddresses.has(value)) {
+                alert('This wallet address has already been submitted');
+                return;
+            }
+            
+            if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value)) {
+                usedAddresses.add(value);
+                playFlyingSound();
+                const inputRect = input.getBoundingClientRect();
+                const networkRect = document.querySelector('.network-container').getBoundingClientRect();
+                createEnergyBall(inputRect, networkRect);
+                input.value = '';
+            }
+        }
+
+        // Visibility change handling
+        document.addEventListener('visibilitychange', () => {
+            isPageVisible = document.visibilityState=== 'visible';
+            if (isPageVisible) {
+                startAnimation();
+            } else {
+                stopAnimation();
+            }
+        });
+
+        // Page unload cleanup
+        window.addEventListener('beforeunload', () => {
+            stopAnimation();
+            if (audioContext) {
+                audioContext.close();
+            }
+        });
+
+        window.addEventListener('resize', resize);
+        resize();
+        startAnimation();
+
+        const input = document.querySelector('input');
+        const button = document.querySelector('button');
+
+        button.addEventListener('click', handleSubmit);
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleSubmit();
+        });
+
+        document.addEventListener('click', initAudioContext, { once: true });
+    </script>
+</body>
+</html>
