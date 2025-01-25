@@ -2,6 +2,7 @@
 <html>
 <head>
     <style>
+        /* ... existing styles remain the same ... */
         body {
             margin: 0;
             min-height: 100vh;
@@ -106,6 +107,29 @@
             50% { transform: scale(1.5); opacity: 0.8; }
             100% { transform: scale(0); opacity: 0; }
         }
+
+        .custom-alert {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.9);
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    z-index: 1000;
+    text-align: center;
+}
+
+.custom-alert button {
+    margin-top: 15px;
+    padding: 8px 20px;
+    background: linear-gradient(45deg, #ffffff, #f0f0f0);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
     </style>
 </head>
 <body>
@@ -132,6 +156,25 @@
         let animationFrameId = null;
         let isPageVisible = true;
 
+        // Load used addresses from localStorage on page load
+        function loadUsedAddresses() {
+            const savedAddresses = localStorage.getItem('usedWalletAddresses');
+            if (savedAddresses) {
+                const addressArray = JSON.parse(savedAddresses);
+                usedAddresses = new Set(addressArray);
+            }
+        }
+
+        // Save used addresses to localStorage
+        function saveUsedAddresses() {
+            const addressArray = Array.from(usedAddresses);
+            localStorage.setItem('usedWalletAddresses', JSON.stringify(addressArray));
+        }
+
+        // Load saved addresses when the page loads
+        loadUsedAddresses();
+
+        // ... rest of the Node and Connection classes remain the same ...
         class Node {
             constructor(x, y) {
                 this.x = x;
@@ -223,6 +266,41 @@
             }
         }
 
+        // Update the handleSubmit function to save addresses to localStorage
+        function showCustomAlert(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'custom-alert';
+    alertDiv.innerHTML = `
+        <div>Omen says: ${message}</div>
+        <button onclick="this.parentElement.remove()">OK</button>
+    `;
+    document.body.appendChild(alertDiv);
+}
+
+function handleSubmit() {
+    const value = input.value.trim();
+    
+    if (!value) {
+        return;
+    }
+    
+    if (usedAddresses.has(value)) {
+        showCustomAlert('This wallet address has already been submitted');
+        return;
+    }
+    
+    if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value)) {
+        usedAddresses.add(value);
+        saveUsedAddresses();
+        playFlyingSound();
+        const inputRect = input.getBoundingClientRect();
+        const networkRect = document.querySelector('.network-container').getBoundingClientRect();
+        createEnergyBall(inputRect, networkRect);
+        input.value = '';
+    }
+}
+
+        // ... rest of the existing functions remain the same ...
         function createNetwork() {
             const centerX = width * 0.5;
             const centerY = height * 0.5;
@@ -263,38 +341,63 @@
             }
         }
 
-        function playFlyingSound() {
+        function createWindSound() {
             initAudioContext();
             
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            const filter = audioContext.createBiquadFilter();
+            const noise = audioContext.createBufferSource();
+            const buffer = audioContext.createBuffer(1, audioContext.sampleRate * 1, audioContext.sampleRate);
+            const data = buffer.getChannelData(0);
             
-            oscillator.connect(filter);
+            for (let i = 0; i < buffer.length; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+            
+            noise.buffer = buffer;
+            
+            const filter = audioContext.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.value = 400;
+            filter.Q.value = 0.5;
+            
+            const gainNode = audioContext.createGain();
+            
+            noise.connect(filter);
             filter.connect(gainNode);
             gainNode.connect(audioContext.destination);
             
             const now = audioContext.currentTime;
             
-            oscillator.type = 'sawtooth';
-            oscillator.frequency.setValueAtTime(800, now);
-            oscillator.frequency.exponentialRampToValueAtTime(2000, now + 1);
-            
-            filter.type = 'bandpass';
-            filter.frequency.setValueAtTime(1000, now);
-            filter.frequency.exponentialRampToValueAtTime(3000, now + 1);
-            
+            // Wind whoosh effect
             gainNode.gain.setValueAtTime(0, now);
-            gainNode.gain.linearRampToValueAtTime(0.3, now + 0.1);
+            gainNode.gain.linearRampToValueAtTime(0.3, now + 0.2);
             gainNode.gain.exponentialRampToValueAtTime(0.01, now + 1);
             
-            oscillator.start(now);
-            oscillator.stop(now + 1);
+            filter.frequency.setValueAtTime(400, now);
+            filter.frequency.linearRampToValueAtTime(1200, now + 0.5);
+            filter.frequency.linearRampToValueAtTime(200, now + 1);
+            
+            noise.start(now);
+            noise.stop(now + 1);
         }
 
-        function playAbsorptionSound() {
-            initAudioContext();
+        const mysteriousMessages = [
+            "Your essence joins the network...",
+            "Another soul enters the void...",
+            "The digital realm grows stronger...",
+            "Your power flows through the system...",
+            "The network welcomes your presence...",
+            "Your energy fuels our purpose...",
+            "Another connection forged in darkness...",
+            "Your signature echoes through eternity...",
+            "The collective grows stronger...",
+            "Your digital footprint is sealed..."
+        ];
+
+        function playFlyingSound() {
+            // Create whooshing wind sound
+            createWindSound();
             
+            // Add a high-pitched swoosh
             const oscillator = audioContext.createOscillator();
             const gainNode = audioContext.createGain();
             
@@ -305,13 +408,55 @@
             
             oscillator.type = 'sine';
             oscillator.frequency.setValueAtTime(2000, now);
-            oscillator.frequency.exponentialRampToValueAtTime(100, now + 0.5);
+            oscillator.frequency.exponentialRampToValueAtTime(4000, now + 0.5);
+            oscillator.frequency.exponentialRampToValueAtTime(1000, now + 1);
             
-            gainNode.gain.setValueAtTime(0.4, now);
+            gainNode.gain.setValueAtTime(0, now);
+            gainNode.gain.linearRampToValueAtTime(0.2, now + 0.1);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, now + 1);
+            
+            oscillator.start(now);
+            oscillator.stop(now + 1);
+        }
+
+        function playAbsorptionSound() {
+            initAudioContext();
+            
+            // Deep impact sound
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            const filter = audioContext.createBiquadFilter();
+            
+            oscillator.connect(filter);
+            filter.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            const now = audioContext.currentTime;
+            
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(200, now);
+            oscillator.frequency.exponentialRampToValueAtTime(50, now + 0.5);
+            
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(1000, now);
+            filter.frequency.exponentialRampToValueAtTime(100, now + 0.5);
+            
+            gainNode.gain.setValueAtTime(0.5, now);
             gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
             
             oscillator.start(now);
             oscillator.stop(now + 0.5);
+
+            // Play mysterious voice message
+            setTimeout(() => {
+                const msg = new SpeechSynthesisUtterance(
+                    mysteriousMessages[Math.floor(Math.random() * mysteriousMessages.length)]
+                );
+                msg.rate = 0.8; // Slower rate for more mysterious effect
+                msg.pitch = 0.7; // Lower pitch for darker voice
+                msg.volume = 0.8;
+                speechSynthesis.speak(msg);
+            }, 500);
         }
 
         function createEnergyBall(inputRect, networkRect) {
@@ -387,28 +532,6 @@
             });
             
             animationFrameId = requestAnimationFrame(animate);
-        }
-
-        function handleSubmit() {
-            const value = input.value.trim();
-            
-            if (!value) {
-                return;
-            }
-            
-            if (usedAddresses.has(value)) {
-                alert('This wallet address has already been submitted');
-                return;
-            }
-            
-            if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value)) {
-                usedAddresses.add(value);
-                playFlyingSound();
-                const inputRect = input.getBoundingClientRect();
-                const networkRect = document.querySelector('.network-container').getBoundingClientRect();
-                createEnergyBall(inputRect, networkRect);
-                input.value = '';
-            }
         }
 
         document.addEventListener('visibilitychange', () => {
