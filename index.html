@@ -529,70 +529,138 @@ function handleSubmit() {
 ];
 
         function playFlyingSound() {
-            // Create whooshing wind sound
-            createWindSound();
-            
-            // Add a high-pitched swoosh
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            
-            const now = audioContext.currentTime;
-            
-            oscillator.type = 'sine';
-            oscillator.frequency.setValueAtTime(2000, now);
-            oscillator.frequency.exponentialRampToValueAtTime(4000, now + 0.5);
-            oscillator.frequency.exponentialRampToValueAtTime(1000, now + 1);
-            
-            gainNode.gain.setValueAtTime(0, now);
-            gainNode.gain.linearRampToValueAtTime(0.2, now + 0.1);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, now + 1);
-            
-            oscillator.start(now);
-            oscillator.stop(now + 1);
-        }
+    initAudioContext();
+    
+    // Create a more subtle wind sound
+    const noise = audioContext.createBufferSource();
+    const buffer = audioContext.createBuffer(1, audioContext.sampleRate * 1.5, audioContext.sampleRate);
+    const data = buffer.getChannelData(0);
+    
+    for (let i = 0; i < buffer.length; i++) {
+        data[i] = Math.random() * 2 - 1;
+    }
+    
+    noise.buffer = buffer;
+    
+    const filter = audioContext.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 200;
+    filter.Q.value = 0.7;
+    
+    const gainNode = audioContext.createGain();
+    
+    noise.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    const now = audioContext.currentTime;
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.15, now + 0.3);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, now + 1.5);
+    
+    filter.frequency.setValueAtTime(200, now);
+    filter.frequency.linearRampToValueAtTime(800, now + 0.7);
+    filter.frequency.linearRampToValueAtTime(100, now + 1.5);
+    
+    noise.start(now);
+    noise.stop(now + 1.5);
+}
 
-        function playAbsorptionSound() {
-            initAudioContext();
-            
-            // Deep impact sound
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            const filter = audioContext.createBiquadFilter();
-            
-            oscillator.connect(filter);
-            filter.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            
-            const now = audioContext.currentTime;
-            
-            oscillator.type = 'sine';
-            oscillator.frequency.setValueAtTime(200, now);
-            oscillator.frequency.exponentialRampToValueAtTime(50, now + 0.5);
-            
-            filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(1000, now);
-            filter.frequency.exponentialRampToValueAtTime(100, now + 0.5);
-            
-            gainNode.gain.setValueAtTime(0.5, now);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
-            
-            oscillator.start(now);
-            oscillator.stop(now + 0.5);
+function playAbsorptionSound() {
+    initAudioContext();
+    
+    // Create multiple layered sounds for a more intense absorption effect
+    
+    // Deep bass impact
+    const oscillator1 = audioContext.createOscillator();
+    const gainNode1 = audioContext.createGain();
+    const filter1 = audioContext.createBiquadFilter();
+    
+    oscillator1.connect(filter1);
+    filter1.connect(gainNode1);
+    gainNode1.connect(audioContext.destination);
+    
+    const now = audioContext.currentTime;
+    
+    oscillator1.type = 'sine';
+    oscillator1.frequency.setValueAtTime(150, now);
+    oscillator1.frequency.exponentialRampToValueAtTime(30, now + 0.7);
+    
+    filter1.type = 'lowpass';
+    filter1.frequency.setValueAtTime(800, now);
+    filter1.frequency.exponentialRampToValueAtTime(50, now + 0.7);
+    
+    gainNode1.gain.setValueAtTime(0.7, now);
+    gainNode1.gain.linearRampToValueAtTime(0.01, now + 0.7);
+    
+    oscillator1.start(now);
+    oscillator1.stop(now + 0.7);
+    
+    // Resonant sweep
+    const oscillator2 = audioContext.createOscillator();
+    const gainNode2 = audioContext.createGain();
+    const filter2 = audioContext.createBiquadFilter();
+    
+    oscillator2.connect(filter2);
+    filter2.connect(gainNode2);
+    gainNode2.connect(audioContext.destination);
+    
+    oscillator2.type = 'sawtooth';
+    oscillator2.frequency.setValueAtTime(300, now);
+    oscillator2.frequency.exponentialRampToValueAtTime(50, now + 0.5);
+    
+    filter2.type = 'bandpass';
+    filter2.Q.value = 10;
+    filter2.frequency.setValueAtTime(2000, now);
+    filter2.frequency.exponentialRampToValueAtTime(100, now + 0.5);
+    
+    gainNode2.gain.setValueAtTime(0.3, now);
+    gainNode2.gain.linearRampToValueAtTime(0.01, now + 0.5);
+    
+    oscillator2.start(now);
+    oscillator2.stop(now + 0.5);
+    
+    // Energy dissipation noise
+    const noise = audioContext.createBufferSource();
+    const noiseBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 0.7, audioContext.sampleRate);
+    const noiseData = noiseBuffer.getChannelData(0);
+    
+    for (let i = 0; i < noiseBuffer.length; i++) {
+        noiseData[i] = Math.random() * 2 - 1;
+    }
+    
+    noise.buffer = noiseBuffer;
+    
+    const noiseFilter = audioContext.createBiquadFilter();
+    const noiseGain = audioContext.createGain();
+    
+    noise.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(audioContext.destination);
+    
+    noiseFilter.type = 'bandpass';
+    noiseFilter.frequency.setValueAtTime(3000, now);
+    noiseFilter.frequency.exponentialRampToValueAtTime(100, now + 0.7);
+    noiseFilter.Q.value = 2;
+    
+    noiseGain.gain.setValueAtTime(0.2, now);
+    noiseGain.gain.linearRampToValueAtTime(0.01, now + 0.7);
+    
+    noise.start(now);
+    noise.stop(now + 0.7);
 
-            // Play mysterious voice message
-            setTimeout(() => {
-                const msg = new SpeechSynthesisUtterance(
-                    mysteriousMessages[Math.floor(Math.random() * mysteriousMessages.length)]
-                );
-                msg.rate = 0.8; // Slower rate for more mysterious effect
-                msg.pitch = 0.7; // Lower pitch for darker voice
-                msg.volume = 0.8;
-                speechSynthesis.speak(msg);
-            }, 500);
-        }
+    // Play mysterious voice message after the absorption effect
+    setTimeout(() => {
+        const msg = new SpeechSynthesisUtterance(
+            mysteriousMessages[Math.floor(Math.random() * mysteriousMessages.length)]
+        );
+        msg.rate = 0.8;
+        msg.pitch = 0.7;
+        msg.volume = 0.8;
+        speechSynthesis.speak(msg);
+    }, 700);
+}
 
         function createEnergyBall(inputRect, networkRect) {
             const ball = document.createElement('div');
